@@ -547,7 +547,7 @@ function saveMat(){
     if(!it.questions.length){$("mer").textContent=T("Weka angalau swali 1 lenye majibu 2 na jibu sahihi lenye maandishi.","Add at least 1 question with 2 options and a filled correct answer.");return}
   }
   if(CFG.api){
-    var p={item:it};if(file&&ty!=="quiz")p.file={name:file.name,mime:file.type,data:file.url.split(",")[1]};
+    var p={item:it};if(atts.length&&ty!=="quiz")p.files=atts.map(function(a){return{name:a.name,mime:a.type,data:a.url.split(",")[1]}});
     $("mer").textContent=T("Inahifadhi...","Saving...");
     api("addMat",p).then(function(j){D.mat.unshift(j.item);lw("mat",D.mat);closeM();draw();toast(T("Imehifadhiwa","Saved"))}).catch(function(){$("mer").textContent=T("Imeshindwa kuhifadhi. Jaribu tena.","Could not save. Try again.")});
     return
@@ -608,7 +608,7 @@ document.addEventListener("click",function(e){
   if(a==="flt"){flt=b.dataset.v;drawMat()}
   else if(a==="pick"){$("mfi").click()}
   else if(a==="view")viewM(id)
-  else if(a==="viewa"){var it0=D.mat.filter(function(i){return i.id===id})[0],a0=it0&&it0.atts&&it0.atts[+b.dataset.k];if(a0){D.mat.push({id:"__t",title:it0.title,fileData:a0.url,fileName:a0.name});viewM("__t");D.mat.pop()}}
+  else if(a==="viewa"){var it0=D.mat.filter(function(i){return i.id===id})[0],a0=it0&&it0.atts&&it0.atts[+b.dataset.k];if(a0&&/^https?:/.test(a0.url)){window.open(a0.url,"_blank")}else if(a0){D.mat.push({id:"__t",title:it0.title,fileData:a0.url,fileName:a0.name});viewM("__t");D.mat.pop()}}
   else if(a==="rmatt"){atts.splice(+id,1);file=atts[0]||null;drawAtts()}
   else if(a==="tday"){tday=+b.dataset.v;drawToday()}
   else if(a==="sem"){msem=+b.dataset.v;mmod="";drawMat()}

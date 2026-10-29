@@ -1,0 +1,109 @@
+/**
+ * BHRM backend (Google Apps Script)
+ * Weka hii kwenye Google Sheet: Extensions > Apps Script.
+ * Badilisha PIN hapa chini kabla ya ku-deploy.
+ */
+var PIN = "Bhrm@IB2026";
+var FOLDER_NAME = "BHRM Notes";
+
+function doGet() {
+  return json_({ ok: true, msg: "BHRM backend iko hewani" });
+}
+
+function doPost(e) {
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(20000);
+    var b = JSON.parse(e.postData.contents);
+    var a = b.action;
+    var cr = b.pin === PIN;
+
+    // Zinazoruhusiwa kwa kila mtu
+    if (a === "listMat") return json_({ ok: true, items: list_("Mat") });
+    if (a === "addRuh") { add_("Ruh", b.item); return json_({ ok: true }); }
+    if (a === "addRes") { add_("Res", b.item); return json_({ ok: true }); }
+
+    // Zinazohitaji PIN ya CR
+    if (!cr) return json_({ ok: false, error: "auth" });
+
+    if (a === "auth") return json_({ ok: true });
+    if (a === "listRuh") return json_({ ok: true, items: list_("Ruh") });
+    if (a === "listRes") return json_({ ok: true, items: list_("Res") });
+
+    if (a === "addMat") {
+      var it = b.item;
+      var files = b.files || (b.file ? [b.file] : []);
+      if (files.length) {
+        it.atts = files.filter(function (x) { return x && x.data; }).map(function (x) {
+          var blob = Utilities.newBlob(
+            Utilities.base64Decode(x.data),
+            x.mime || "application/octet-stream",
+            x.name || "file"
+          );
+          var f = folder_().createFile(blob);
+          f.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+          return { name: x.name, type: x.mime, url: "https://drive.google.com/file/d/" + f.getId() + "/view", fid: f.getId() };
+        });
+      }
+      add_("Mat", it);
+      return json_({ ok: true, item: it });
+    }
+
+    if (a === "delMat") { del_("Mat", b.id); return json_({ ok: true }); }
+
+    if (a === "setStatus") {
+      var sh = sheet_("Ruh"), rows = sh.getDataRange().getValues();
+      for (var i = 0; i < rows.length; i++) {
+        if (rows[i][0] === b.id) {
+          var o = JSON.parse(rows[i][1]);
+          o.status = b.status;
+          sh.getRange(i + 1, 2).setValue(JSON.stringify(o));
+          break;
+        }
+      }
+      return json_({ ok: true });
+    }
+
+    return json_({ ok: false, error: "unknown action" });
+  } catch (err) {
+    return json_({ ok: false, error: String(err) });
+  } finally {
+    try { lock.releaseLock(); } catch (x) {}
+  }
+}
+
+/* ---------- Helpers ---------- */
+function json_(o) {
+  return ContentService.createTextOutput(JSON.stringify(o))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+function sheet_(name) {
+  var ss = SpreadsheetApp.getActive();
+  return ss.getSheetByName(name) || ss.insertSheet(name);
+}
+function add_(name, item) {
+  sheet_(name).appendRow([item.id, JSON.stringify(item)]);
+}
+function list_(name) {
+  var rows = sheet_(name).getDataRange().getValues(), out = [];
+  for (var i = rows.length - 1; i >= 0; i--) {   // mpya kwanza
+    if (rows[i][1]) { try { out.push(JSON.parse(rows[i][1])); } catch (e) {} }
+  }
+  return out;
+}
+function del_(name, id) {
+  var sh = sheet_(name), rows = sh.getDataRange().getValues();
+  for (var i = rows.length - 1; i >= 0; i--) {
+    if (rows[i][0] === id) sh.deleteRow(i + 1);
+  }
+}
+function folder_() {
+  var it = DriveApp.getFoldersByName(FOLDER_NAME);
+  return it.hasNext() ? it.next() : DriveApp.createFolder(FOLDER_NAME);
+}
+
+/** Endesha hii MARA MOJA kwa mkono ili kutoa ruhusa za Drive na Sheet. */
+function authorize() {
+  folder_();
+  sheet_("Mat"); sheet_("Ruh"); sheet_("Res");
+}
